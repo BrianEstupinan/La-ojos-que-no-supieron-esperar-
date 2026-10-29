@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Eye → Space | Animación interactiva</title>
+<style>
+:root{color-scheme:dark;--bg:#05070d;--panel:#0c1220;--line:#27334b;--text:#e8efff;--muted:#9aa9c5;--accent:#8ad7ff}
+*{box-sizing:border-box} body{margin:0;background:radial-gradient(ellipse at 50% 35%,#101a2d 0,#05070d 65%);font-family:Inter,system-ui,Segoe UI,sans-serif;color:var(--text);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+main{width:min(1100px,100%)}header{display:flex;justify-content:space-between;align-items:end;gap:16px;margin-bottom:16px}h1{font-size:clamp(24px,4vw,38px);letter-spacing:-.04em;margin:0}p{color:var(--muted);margin:8px 0 0;line-height:1.5}.tag{font-size:12px;letter-spacing:.15em;text-transform:uppercase;color:#a7dfff}
+.stage{position:relative;border:1px solid var(--line);border-radius:18px;overflow:hidden;background:#03050a;box-shadow:0 25px 80px #0009;aspect-ratio:16/9}canvas{width:100%;height:100%;display:block}.overlay{position:absolute;inset:auto 18px 16px;display:flex;justify-content:space-between;align-items:center;gap:12px;pointer-events:none}.status{font-size:12px;color:#c5d5ef;background:#07101dcc;border:1px solid #31425b;border-radius:999px;padding:8px 12px;backdrop-filter:blur(8px)}.controls{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}button{border:1px solid #33445e;background:#101a2b;color:var(--text);border-radius:999px;padding:11px 17px;font-weight:650;cursor:pointer}button.primary{background:#d8f3ff;color:#07111c;border-color:#d8f3ff}button:hover{filter:brightness(1.12)}.hint{font-size:13px;margin-top:12px}.footer{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:18px;color:#71819f;font-size:12px}@media(max-width:600px){body{padding:12px}header{display:block}.stage{aspect-ratio:4/3}.overlay{inset:auto 10px 10px}.status{font-size:10px;padding:6px 9px}}
+</style>
+</head>
+<body>
+<main>
+<header><div><div class="tag">Generative animation · Canvas</div><h1>Eye <span style="color:#8ad7ff">→</span> Space</h1><p>Un ojo se despierta, parpadea y se convierte en un viaje hacia una nebulosa con forma de corazón.</p></div></header>
+<div class="stage"><canvas id="scene" aria-label="Animación de un ojo que viaja al espacio"></canvas><div class="overlay"><span class="status" id="phase">Preparando mirada…</span><span class="status" id="timer">00:00</span></div></div>
+<div class="controls"><button class="primary" id="replay">↻ Reproducir desde el inicio</button><button id="pause">Ⅱ Pausar</button><button id="fullscreen">⛶ Pantalla completa</button></div>
+<p class="hint">Consejo: activa pantalla completa para disfrutar mejor el viaje. La animación se repite automáticamente y puedes reiniciarla cuando quieras.</p>
+<div class="footer"><span>Hecho con HTML Canvas + JavaScript</span><span>Funciona en navegador · No requiere instalar Python</span></div>
+</main>
+<script>
+(() => {
+const canvas=document.getElementById('scene'),ctx=canvas.getContext('2d');
+const phaseLabel=document.getElementById('phase'),timerLabel=document.getElementById('timer');
+let W=1280,H=720,dpr=1,start=performance.now(),paused=false,pauseAt=0,offset=0;
+const clamp=(v,a=0,b=1)=>Math.max(a,Math.min(b,v));
+const smooth=(a,b,x)=>{let t=clamp((x-a)/(b-a));return t*t*(3-2*t)};
+const mix=(a,b,t)=>a+(b-a)*t;
+let stars=[];
+function resize(){const r=canvas.getBoundingClientRect();dpr=Math.min(devicePixelRatio||1,2);W=Math.max(1,r.width);H=Math.max(1,r.height);canvas.width=Math.round(W*dpr);canvas.height=Math.round(H*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);stars=Array.from({length:900},()=>({x:Math.random()*W,y:Math.random()*H,z:Math.random(),p:Math.random()*6.28,s:.4+Math.random()*1.6,c:Math.random()}));}
+window.addEventListener('resize',resize);resize();
+function background(){ctx.fillStyle='#03050a';ctx.fillRect(0,0,W,H);let g=ctx.createRadialGradient(W*.5,H*.48,0,W*.5,H*.48,Math.max(W,H)*.72);g.addColorStop(0,'#101a30');g.addColorStop(.6,'#070b16');g.addColorStop(1,'#020308');ctx.fillStyle=g;ctx.fillRect(0,0,W,H)}
+function drawEye(t,zoom){
+ const cx=W*.5,cy=H*.51,scale=Math.min(W/1000,H/560)*(1+zoom*17);
+ ctx.save();ctx.translate(cx,cy);ctx.scale(scale,scale);
+ // skin shadow and socket
+ let socket=ctx.createRadialGradient(0,0,70,0,0,350);socket.addColorStop(0,'#38271f');socket.addColorStop(.48,'#17151b');socket.addColorStop(1,'#05060a');
+ ctx.fillStyle=socket;ctx.beginPath();ctx.ellipse(0,0,380,220,0,0,Math.PI*2);ctx.fill();
+ // eyelid aperture opens over time
+ const open=smooth(.45,2.8,t)*(1-.985*(1-smooth(4.0,4.11,t))*(1-smooth(4.12,4.36,t)));
+ const hh=14+125*open;
+ ctx.save();ctx.beginPath();ctx.moveTo(-315,0);ctx.quadraticCurveTo(-160,-hh*1.22,0,-hh);ctx.quadraticCurveTo(175,-hh*1.14,315,0);ctx.quadraticCurveTo(160,hh*1.18,0,hh*.92);ctx.quadraticCurveTo(-170,hh*1.16,-315,0);ctx.closePath();ctx.clip();
+ let scl=ctx.createLinearGradient(0,-hh,0,hh);scl.addColorStop(0,'#c8a18c');scl.addColorStop(.45,'#e6c8b2');scl.addColorStop(1,'#9f7770');ctx.fillStyle=scl;ctx.fillRect(-330,-hh-10,660,hh*2+20);
+ // sclera veins
+ for(let i=0;i<40;i++){let x=-290+(i*37%580),y=Math.sin(i*9.7)*hh*.65;ctx.strokeStyle=`rgba(130,44,54,${.12+(i%4)*.04})`;ctx.lineWidth=.7;ctx.beginPath();ctx.moveTo(x,y);ctx.quadraticCurveTo(x+14,y-5,x+28,y+Math.sin(i)*8);ctx.stroke()}
+ // iris
+ const ix=Math.sin(t*1.2)*12,iy=Math.sin(t*.9)*5;
+ let ir=118;let iris=ctx.createRadialGradient(ix,iy,12,ix,iy,ir);iris.addColorStop(0,'#080a10');iris.addColorStop(.22,'#26150f');iris.addColorStop(.42,'#a45c24');iris.addColorStop(.68,'#dfaa53');iris.addColorStop(.85,'#69401f');iris.addColorStop(1,'#211a1a');
+ ctx.fillStyle=iris;ctx.beginPath();ctx.arc(ix,iy,ir,0,Math.PI*2);ctx.fill();
+ for(let i=0;i<180;i++){let a=i*Math.PI*2/180,inner=38+Math.random()*0;let outer=ir-5;ctx.strokeStyle=`rgba(${i%3?'255,195,105':'95,43,20'},${.2+(i%5)*.07})`;ctx.lineWidth=1+(i%4)*.45;ctx.beginPath();ctx.moveTo(ix+Math.cos(a)*inner,iy+Math.sin(a)*inner);ctx.lineTo(ix+Math.cos(a)*outer,iy+Math.sin(a)*outer);ctx.stroke()}
+ ctx.fillStyle='#020308';ctx.beginPath();ctx.arc(ix,iy,43,0,Math.PI*2);ctx.fill();
+ // reflections
+ let gl=ctx.createRadialGradient(ix-32,iy-42,1,ix-32,iy-42,30);gl.addColorStop(0,'#fff');gl.addColorStop(1,'#fff0');ctx.fillStyle=gl;ctx.beginPath();ctx.arc(ix-32,iy-42,30,0,Math.PI*2);ctx.fill();
+ ctx.fillStyle='#fff';ctx.globalAlpha=.8;ctx.beginPath();ctx.ellipse(ix+30,iy+35,8,14,-.5,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;
+ ctx.restore();
+ // lids / eyeliner
+ ctx.lineCap='round';ctx.lineWidth=10;ctx.strokeStyle='#21171a';ctx.beginPath();ctx.moveTo(-318,0);ctx.quadraticCurveTo(-160,-hh*1.25,0,-hh);ctx.quadraticCurveTo(170,-hh*1.17,318,0);ctx.stroke();
+ ctx.lineWidth=6;ctx.strokeStyle='#6c443b';ctx.beginPath();ctx.moveTo(-315,3);ctx.quadraticCurveTo(-155,hh*1.2,0,hh*.92);ctx.quadraticCurveTo(165,hh*1.16,315,3);ctx.stroke();
+ // lashes
+ for(let i=0;i<35;i++){let x=-300+i*600/34, q=x/315, y=-hh*Math.max(0,1-q*q);ctx.strokeStyle='#1b1417';ctx.lineWidth=2.2;ctx.beginPath();ctx.moveTo(x,y);ctx.quadraticCurveTo(x-5,y-8,x-10-Math.random()*7,y-18-Math.random()*10);ctx.stroke()}
+ ctx.restore();
+}
+function drawSpace(t,zoom){
+ const p=clamp((t-5.4)/28);background();
+ // colored heart nebula layered in world space
+ ctx.save();ctx.translate(W/2,H/2);let scale= mix(.18,1.25,p);ctx.scale(scale,scale);
+ const heartPath=()=>{ctx.beginPath();ctx.moveTo(0,110);ctx.bezierCurveTo(-70,50,-190,-10,-155,-100);ctx.bezierCurveTo(-125,-180,-30,-150,0,-88);ctx.bezierCurveTo(45,-165,140,-170,165,-90);ctx.bezierCurveTo(200,-5,80,65,0,110);ctx.closePath()};
+ let grad=ctx.createRadialGradient(0,-25,8,0,-20,230);grad.addColorStop(0,'rgba(255,160,220,.8)');grad.addColorStop(.3,'rgba(136,95,255,.48)');grad.addColorStop(.65,'rgba(45,139,255,.19)');grad.addColorStop(1,'rgba(15,20,60,0)');
+ ctx.fillStyle=grad;ctx.beginPath();ctx.arc(0,-10,240,0,Math.PI*2);ctx.fill();
+ ctx.globalCompositeOperation='screen';
+ for(let i=0;i<5;i++){ctx.save();ctx.translate(Math.sin(t*.22+i)*12,Math.cos(t*.18+i)*10);ctx.scale(1+i*.12,1+i*.12);heartPath();ctx.fillStyle=['rgba(255,75,170,.13)','rgba(117,83,255,.13)','rgba(65,187,255,.1)','rgba(255,125,190,.08)','rgba(140,110,255,.08)'][i];ctx.fill();ctx.restore()}
+ // glowing filament lines around heart
+ for(let i=0;i<130;i++){let a=i*2.399,rad=55+(i%31)*5;let x=Math.cos(a)*rad,y=Math.sin(a)*rad*.75-15;ctx.strokeStyle=`rgba(${120+i%100},${100+i%100},255,${.08+(i%6)*.025})`;ctx.lineWidth=.7;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+Math.sin(t+i)*10,y+Math.cos(t*.8+i)*12);ctx.stroke()}
+ ctx.globalCompositeOperation='source-over';ctx.restore();
+ // stars drift toward viewer
+ for(const s of stars){let z=(s.z+(t*.08)%1)%1;let x=(s.x-W/2)/(1-z*.92)+W/2,y=(s.y-H/2)/(1-z*.92)+H/2;let r=(.4+z*2.5)*s.s;ctx.fillStyle=s.c>.85?'rgba(255,210,170,.9)':`rgba(165,200,255,${.25+z*.65})`;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();if(z>.86){ctx.strokeStyle='rgba(150,190,255,.3)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x-(x-W/2)*.04,y-(y-H/2)*.04);ctx.stroke()}}
+ // soft vignette
+ let vg=ctx.createRadialGradient(W/2,H/2,Math.min(W,H)*.18,W/2,H/2,Math.max(W,H)*.7);vg.addColorStop(0,'#0000');vg.addColorStop(1,'rgba(0,0,8,.72)');ctx.fillStyle=vg;ctx.fillRect(0,0,W,H);
+}
+function frame(now){if(!paused){let t=((now-start-offset)/1000);if(t>35){start=now;offset=0;t=0;stars.forEach(s=>{s.x=Math.random()*W;s.y=Math.random()*H;s.z=Math.random()})}
+ background();let travel=smooth(5.1,7.3,t);if(t<7.3){drawEye(t,travel);if(t>5.1){ctx.save();ctx.globalAlpha=travel;let g=ctx.createRadialGradient(W/2,H/2,5,W/2,H/2,Math.max(W,H)*.7);g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(1,'rgba(0,0,0,.98)');ctx.fillStyle=g;ctx.fillRect(0,0,W,H);ctx.restore()}}else drawSpace(t,travel);
+ let label=t<.9?'El ojo despierta':t<3.9?'La mirada cobra vida':t<4.5?'Parpadeo':t<7.3?'Entrando en la pupila':t<15?'Viaje estelar':'Nebulosa del corazón';phaseLabel.textContent=label;timerLabel.textContent='00:'+String(Math.floor(t)).padStart(2,'0');
+ }requestAnimationFrame(frame)}
+document.getElementById('replay').addEventListener('click',()=>{start=performance.now();offset=0;paused=false;document.getElementById('pause').textContent='Ⅱ Pausar';});
+document.getElementById('pause').addEventListener('click',()=>{if(!paused){paused=true;pauseAt=performance.now();document.getElementById('pause').textContent='▶ Continuar'}else{offset+=performance.now()-pauseAt;paused=false;document.getElementById('pause').textContent='Ⅱ Pausar';requestAnimationFrame(frame)}});
+document.getElementById('fullscreen').addEventListener('click',()=>{const el=document.querySelector('.stage');if(el.requestFullscreen)el.requestFullscreen()});
+requestAnimationFrame(frame);
+})();
+</script>
+</body></html>
